@@ -1,0 +1,219 @@
+---
+title: "AirQuality"
+author: "Siddivinayak Jawalkar"
+date: "September 28, 2018"
+output: html_document
+---
+# Multiple Linear Regression using Air Quality dataset
+```{r: Loading Libraries}
+# Loading the libraries
+library(MASS,warn.conflicts = F)
+library(datasets)
+library(data.table,warn.conflicts = F)
+library(e1071)
+library(graphics)
+library(ggplot2)
+library(dplyr,warn.conflicts = F)
+library(MLmetrics,warn.conflicts = F)
+library(corrplot,warn.conflicts = F)
+library(knitr,warn.conflicts = F)
+```
+***Part1***
+```{r: Loading data}
+# Assigning internal airquality dataset to local variable DB_airquality
+DB_airquality <-airquality
+
+# Add new column of Year = 1976 as per the dataset description
+Year <- 1976
+DB_airquality <- cbind(DB_airquality,Year)
+
+# Add new column "date"
+DB_airquality$date <- as.Date(with(DB_airquality,paste(Year,Month,Day,sep="-")),"%Y-%m-%d")
+
+# To fetch the day of week for the given date.
+week_day <- format(DB_airquality$date, format = "%A")
+
+# New column with week day
+DB_airquality <- cbind(DB_airquality,week_day)
+
+# To check the Top 10 rows of data
+kable(head(DB_airquality,10)) # predict the temperature based on Ozone, Solar radiation and wind parameters
+
+# To check the summary of data
+summary(DB_airquality)
+kable(summary(DB_airquality))
+
+# Checking the count of missing data
+colSums(is.na(DB_airquality))
+```
+```{r: Handling the missing data}
+# Extracting the data for each month
+month5 = subset(DB_airquality, Month==5)
+month6 = subset(DB_airquality, Month==6)
+month7 = subset(DB_airquality, Month==7)
+month8 = subset(DB_airquality, Month==8)
+month9 = subset(DB_airquality, Month==9)
+
+# Replacing the missing data in Ozone column with the mean value of given month
+month5$Ozone[is.na(month5$Ozone)] <- mean(month5$Ozone, na.rm = T)
+month6$Ozone[is.na(month6$Ozone)] <- mean(month6$Ozone, na.rm = T)
+month7$Ozone[is.na(month7$Ozone)] <- mean(month7$Ozone, na.rm = T)
+month8$Ozone[is.na(month8$Ozone)] <- mean(month8$Ozone, na.rm = T)
+month9$Ozone[is.na(month9$Ozone)] <- mean(month9$Ozone, na.rm = T)
+
+# Replacing the missing data in Solar.R column with the mean value of given month
+month5$Solar.R[is.na(month5$Solar.R)] <- mean(month5$Solar.R, na.rm = T)
+month6$Solar.R[is.na(month6$Solar.R)] <- mean(month6$Solar.R, na.rm = T)
+month7$Solar.R[is.na(month7$Solar.R)] <- mean(month7$Solar.R, na.rm = T)
+month8$Solar.R[is.na(month8$Solar.R)] <- mean(month8$Solar.R, na.rm = T)
+month9$Solar.R[is.na(month9$Solar.R)] <- mean(month9$Solar.R, na.rm = T)
+```
+## Data Visualization
+```{r}
+plot((month5$Temp~month5$Day),xlab = "May",ylab = "Temperature in degrees F",main="Temperature pattern in May",col="red")
+plot((month6$Temp~month6$Day),xlab = "June",ylab = "Temperature in degrees F",main="Temperature pattern in June",col="blue")
+plot((month7$Temp~month7$Day),xlab = "July",ylab = "Temperature in degrees F",main="Temperature pattern in July",col="orange")
+plot((month8$Temp~month8$Day),xlab = "August",ylab = "Temperature in degrees F",main="Temperature pattern in August",col="green")
+plot((month9$Temp~month9$Day),xlab = "September",ylab = "Temperature in degrees F",main="Temperature pattern in September",col=rainbow(2))
+
+# Binding each month data into Airquality dataset with 
+DB_airquality <- rbind(month5,month6,month7,month8,month9)
+
+ggplot(DB_airquality, aes(x=DB_airquality$Solar.R, y=DB_airquality$Temp)) + geom_point() + geom_smooth(method = lm)
+ggplot(DB_airquality, aes(x=DB_airquality$Wind, y=DB_airquality$Temp)) + geom_point(col=as.factor(DB_airquality$Month))
+
+# Plotting a histogram
+hist(DB_airquality$Temp,col=rainbow(2))
+
+# Generating a scatter plot
+plot(DB_airquality$Temp~DB_airquality$Day+DB_airquality$Solar.R+DB_airquality$Wind+DB_airquality$Ozone,col="blue")
+
+plot(Ozone ~ Solar.R, data = DB_airquality)
+mean.Ozone <- mean(DB_airquality$Ozone, na.rm = T)
+abline(h=mean.Ozone,col ="red")
+
+plot(Temp ~ Solar.R, data = DB_airquality)
+mean.Temp <- mean(DB_airquality$Temp, na.rm = T)
+plot(lm(DB_airquality$Temp~DB_airquality$Solar.R))
+abline(h=mean.Temp,col="blue")
+
+# Scatter plot of all attributes
+pairs(DB_airquality, panel = panel.smooth, main = "DB_airquality data")
+```
+
+## Analysing Data
+```{r}
+# Checking the count of missing data
+kable(sapply(DB_airquality,function(x){sum(is.na(x))}))
+
+# Analysing the Highest and lowest values for Temperature
+max_temp <- DB_airquality[order(-DB_airquality$Temp),]
+kable(head(max_temp)) # In given data, Highest temperature was observed in August 1976
+
+min_temp <- DB_airquality[order(DB_airquality$Temp),]
+kable(head(min_temp)) # In given data, Lowest temperature was observed in May 1976
+
+# Analysing the Maximum and Minimum wind speed
+max_wind <- DB_airquality[order(-DB_airquality$Wind),]
+kable(head(max_wind)) # In given data, maximum wind speed was observed in May 1976
+
+min_wind <- DB_airquality[order(DB_airquality$Wind),]
+kable(head(min_wind)) # In given data, minimum wind speed was observed in June 1976
+
+# Analysing the Highest and lowest values for Solar radiation
+max_Solar.R <- DB_airquality[order(-DB_airquality$Solar.R),]
+kable(head(max_Solar.R)) # In given data, highest solar radiation was observed in May 1976
+
+min_Solar.R <- DB_airquality[order(DB_airquality$Solar.R),]
+kable(head(min_Solar.R)) # In given data, least amount of solar radiation was observed in July 1976
+
+# Validating the correlation plot for attributes in airqualtiy dataset
+corrplot(cor(DB_airquality[1:6]),method = "number")
+corrplot(cor(DB_airquality[1:6]),method = "color")
+
+# Checking the distribution of Temp attribute in DB_airquality data
+skewness(DB_airquality$Temp, na.rm = FALSE)
+
+# Checking the distribution of Wind attribute in DB_airquality data
+skewness(DB_airquality$Wind, na.rm = FALSE)
+
+# Checking the distribution of Ozone attribute in DB_airquality data
+skewness(DB_airquality$Ozone, na.rm = FALSE)
+
+# Checking the distribution of Solar.R attribute in DB_airquality data
+skewness(DB_airquality$Solar.R, na.rm = FALSE)
+
+# Ploting Histogram with Ozone data
+ggplot(data = DB_airquality) + geom_histogram(mapping = aes(Ozone))
+
+# Ploting Histogram with Temp data
+ggplot(data = DB_airquality) + geom_histogram(mapping = aes(Temp))
+
+# Ploting Histogram with Wind data
+ggplot(data = DB_airquality) + geom_histogram(mapping = aes(Wind))
+
+# Ploting Histogram with Solar.R data
+ggplot(data = DB_airquality) + geom_histogram(mapping = aes(Solar.R))
+```
+```{r}
+# Applying square root transformation on Ozone attribute to see if the histogram becomes more symmetric
+DB_airquality$Ozone.Sqrt <- sqrt(DB_airquality$Ozone)
+
+# Ploting Histogram with Ozone.Sqrt data
+ggplot(data = DB_airquality) + geom_histogram(mapping = aes(Ozone.Sqrt))
+
+skewness(DB_airquality$Ozone.Sqrt,na.rm = TRUE)
+kurtosis(DB_airquality$Ozone.Sqrt,na.rm = TRUE)
+```
+## Model Building
+```{r}
+# Scaling all attributes
+DB_airquality1 <- scale(DB_airquality[c(1:6,10)], scale = TRUE)
+DB_airquality1 <- as.data.frame(DB_airquality1)
+
+# Splitting the data into Train and Test set
+set.seed(123)
+split <- caTools::sample.split(DB_airquality1$Temp, SplitRatio = 2/3)
+Training_Set <- subset(DB_airquality1, split == TRUE)
+Test_Set <- subset(DB_airquality1, split == FALSE)
+
+# Fitting linear regression model to the training set without Ozone data
+fit_Regression <- lm(Temp~.-Ozone,data = Training_Set)
+summary(fit_Regression)
+# Adjusted R-squared: 0.5472 
+# We can see that 'Month' and 'Ozone.Sqrt' are significant attributes in building a Linear regression model.
+
+# Selecting a model by AIC in a Stepwise Algorithm
+Best_lm_Model <- step(fit_Regression)
+summary(Best_lm_Model)
+# Using stepwise algorithm we got Adjusted R-squared: 0.5519
+plot(Best_lm_Model, col= "orange")
+
+# Fitting linear regression model on training dataset with Month' and 'Ozone.Sqrt' as dependent variables.
+fit_Regression1 <- lm(Temp~Ozone.Sqrt+Month,data = Training_Set)
+summary(fit_Regression1)
+
+Best_lm_Model1 <- step(fit_Regression1)
+summary(Best_lm_Model1)
+# Adjusted R-squared:  0.5395 is less than 'fit_Regression' model.
+
+plot(Best_lm_Model1, col= "blue")
+
+# Extracting the test data without Temp column
+colnames(Test_Set)
+Test_Set1 <- Test_Set[-4]
+y_pred <- predict(fit_Regression, newdata = Test_Set1)
+y_pred
+
+Final <- as.data.frame(cbind(Predicted_Temp = y_pred, Actual_Temp = Test_Set$Temp))
+kable(Final, align = 'l')
+
+# Root Mean Square Error Loss
+kable(RMSE(y_pred,Test_Set$Temp)) 
+
+# Mean Square Error Loss
+MSE(y_pred,Test_Set$Temp)
+
+# Mean Absolute Error Loss
+MAE(y_pred,Test_Set$Temp)
+```
